@@ -73,7 +73,7 @@
             "default_branch": "master",
             "auto_merge": true,
             "dependents": [
-                "module-ballerina-graphql",
+                "module-ballerina-graphql-test",
                 "module-ballerina-websub",
                 "module-ballerina-websubhub"
             ]
