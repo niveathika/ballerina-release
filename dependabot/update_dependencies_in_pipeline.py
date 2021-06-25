@@ -121,13 +121,10 @@ def main():
             update_module(idx, current_level)
 
         if auto_merge_pull_requests.lower() == 'true':
-            module_release_failure, chat_message = wait_for_current_level_build(current_level)
+            module_release_failure, payload = wait_for_current_level_build(current_level)
             if module_release_failure:
-                print(chat_message)
-                chat_message += "After following up on the above, retrigger the <" + \
-                    "https://github.com/ballerina-platform/ballerina-release/actions/workflows/update_dependency_version.yml" + \
-                    "|Dependency Update Workflow>"
-                notify_chat.send_message(chat_message)
+                print(payload)
+                notify_chat.send_message(payload)
                 sys.exit(1)
     print('Successfully bumped dependencies in extensions packed in ballerina-distribution')
 
@@ -188,44 +185,66 @@ def wait_for_current_level_build(level):
             sys.exit(1)
 
     module_release_failure = False
-    chat_message = "Dependency update to lang version \'" + lang_version + "\'.\n"
+    payload = {
+        'ballerinaVersion': lang_version,
+        'prChecksFailed': [],
+        'prMergeFailed': [],
+        'buildCheckFailed': [],
+        'buildVersionCannotBeIdentified': []
+    }
     pr_checks_failed_modules = list(
         filter(lambda s: s[MODULE_CONCLUSION] == MODULE_CONCLUSION_PR_CHECK_FAILURE, current_level_modules))
     if len(pr_checks_failed_modules) != 0:
         module_release_failure = True
-        chat_message += 'Following modules\' Automated Dependency Update PRs have failed checks...' + "\n"
+        print('Following modules\' Automated Dependency Update PRs have failed checks...\n')
         for module in pr_checks_failed_modules:
-            chat_message += "<" + module[MODULE_CREATED_PR].html_url + "|" + module['name'] + ">" + "\n"
+            payload['prChecksFailed'].append({
+                'name': module['name'],
+                'link': module[MODULE_CREATED_PR].html_url
+            });
+            print(module['name'] + " (" + module[MODULE_CREATED_PR].html_url + ")\n")
 
     pr_merged_failed_modules = list(
         filter(lambda s: s[MODULE_CONCLUSION] == MODULE_CONCLUSION_PR_MERGE_FAILURE, current_level_modules))
     if len(pr_merged_failed_modules) != 0:
         module_release_failure = True
-        chat_message += 'Following modules\' Automated Dependency Update PRs could not be merged...' + "\n"
+        print('Following modules\' Automated Dependency Update PRs could not be merged...\n')
         for module in pr_merged_failed_modules:
-            chat_message += "<" + module[MODULE_CREATED_PR].html_url + "|" + module['name'] + ">" + "\n"
+            payload['prMergeFailed'].append({
+                'name': module['name'],
+                'link': module[MODULE_CREATED_PR].html_url
+            });
+            print(module['name'] + " (" + module[MODULE_CREATED_PR].html_url + ")\n")
 
     build_checks_failed_modules = list(
         filter(lambda s: s[MODULE_CONCLUSION] == MODULE_CONCLUSION_BUILD_FAILURE, current_level_modules))
     if len(build_checks_failed_modules) != 0:
         module_release_failure = True
-        chat_message += 'Following modules\' Timestamped Build checks have failed...' + "\n"
+        print('Following modules\' Timestamped Build checks have failed...\n')
         for module in build_checks_failed_modules:
             build_actions_page = constants.BALLERINA_ORG_URL + module['name'] + "/actions/workflows/" + \
                                  module[MODULE_BUILD_ACTION_FILE] + ".yml"
-            chat_message += "<" + build_actions_page + "|" + module['name'] + ">" + "\n"
+            payload['buildCheckFailed'].append({
+                'name': module['name'],
+                'link': build_actions_page
+            });
+            print(module['name'] + " (" + build_actions_page + ")\n")
 
     build_version_failed_modules = list(
         filter(lambda s: s[MODULE_CONCLUSION] == MODULE_CONCLUSION_VERSION_CANNOT_BE_IDENTIFIED, current_level_modules))
     if len(build_version_failed_modules) != 0:
         module_release_failure = True
-        chat_message += 'Following modules\' latest Timestamped Build Version cannot be identified...' + "\n"
+        print('Following modules\' latest Timestamped Build Version cannot be identified...\n')
         for module in build_version_failed_modules:
             build_actions_page = constants.BALLERINA_ORG_URL + module['name'] + "/actions/workflows/" + \
                                  module[MODULE_BUILD_ACTION_FILE] + ".yml"
-            chat_message += "<" + build_actions_page + "|" + module['name'] + ">" + "\n"
+            payload['buildVersionCannotBeIdentified'].append({
+                'name': module['name'],
+                'link': build_actions_page
+            });
+            print(module['name'] + " (" + build_actions_page + ")\n")
 
-    return module_release_failure, chat_message
+    return module_release_failure, payload
 
 
 def check_pending_pr_checks(index: int):
